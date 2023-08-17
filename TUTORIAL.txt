@@ -1,0 +1,114 @@
+Subir projeto springboot com docker e kubernetes
+
+1) Criar projeto:
+Seja pelo spring https://start.spring.io/ ou pela IDE
+
+2) Criar arquivo chamado "Dockerfile", sem extensão nenhuma, com coteudo abaixo exemplo abaixo:
+FROM openjdk:17
+VOLUME /tmp
+EXPOSE 8080
+ADD target/spring-k8s-0.0.1-SNAPSHOT.jar my-app.jar
+ENTRYPOINT ["java", "-jar", "/my-app.jar"]
+
+
+3) Criar imagem docker conforme comando abaixo:
+docker build -t seu_usuario_docker_hub/nome_da_imagem .
+
+
+4) Fazer login via terminal no docker hub:
+docker login
+
+
+5) Subir imagem criada no docker hub:
+docker push seu_usuario_docker_hub/nome_da_imagem
+
+
+6) Execute o minikube:
+minikube start
+
+
+7) Criar um arquivo deployment.yaml na riz do projeto com o conteúdo abaixo:
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: my-app
+  template:
+    metadata:
+      labels:
+        app: my-app
+    spec:
+      containers:
+        - name: my-app
+          image: seu_usuario_docker_hub/nome_da_imagem:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          resources:
+            limits:
+              cpu: 0.5
+              memory: "1Gi"
+
+
+8) Execute esse comando para o kubernetes baixar e executar sua imagem:
+kubectl apply -f deployment.yaml
+
+
+9) Confira se subiu os containers:
+kubectl get pods
+
+Deve aparecer assim:
+NAME                      READY   STATUS    RESTARTS   AGE
+my-app-5f8cdddd46-6qcfg   1/1     Running   0          22s
+my-app-5f8cdddd46-gn56z   1/1     Running   0          22s
+
+Confira se o projeto subiu no pod:
+kubectl logs
+
+
+10) Crie o serviço de loadbalance para distribuir a carga entre os pods criados. Para isso crie um arquivo "service.yaml" na raiz do projeto com o conteudo abaixo:
+apiVersion: v1 # Kubernetes API version
+kind: Service # Kubernetes resource kind we are creating
+metadata: # Metadata of the resource kind we are creating
+  name: my-app
+spec:
+  selector:
+    app: my-app
+  ports:
+    - protocol: "TCP"
+      port: 8080 # The port that the service is running on in the cluster
+      targetPort: 8080 # The port exposed by the service
+  type: NodePort # type of the service.
+
+
+11) Execute esse comando para subir o serviço no kubernetes:
+kubectl apply -f service.yaml
+
+Confira se criou:
+kubectl get services
+
+NAME         TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
+kubernetes   ClusterIP   10.96.0.1       <none>        443/TCP          43h
+my-app       NodePort    10.106.58.107   <none>        8080:30734/TCP   18s
+
+
+12) Veja o endereço de IP do pod:
+minikube ip
+
+192.168.49.2
+
+
+13) Faça a requisição para sua aplicação usando o IP retornado acima mais a porta exibida no serviço criado:
+Por exemplo, nesse caso seria:
+http://192.168.49.2:30734/meu_endpoint_da_aplicacao...
+
+
+14) Dá para ver um dashboard interativo do kubernetes executando:
+minikube dashboard
+
+Pelo dashboard dá para fazer as mesmas ações que fazemos pelo terminal, mas com uma GUI.
+
